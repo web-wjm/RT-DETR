@@ -138,8 +138,11 @@ dmypy.json
 
 # datasets and projects
 datasets/
-dataset/
 runs/
+# 排除冗余数据（NEU-DET 原始包和解压后的图像/标注已分离，zip 不需要）
+dataset/NEU-DET.zip
+dataset/backup_ship_*/
+dataset/.neu_det_temp/
 wandb/
 tests/
 .DS_Store
