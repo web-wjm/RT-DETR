@@ -1,0 +1,7 @@
+# GC10-DET Dataset (10 classes, YOLO format)
+train: images/train
+val: images/val
+test: images/test
+
+nc: 10
+names: ['chongkong', 'hanfeng', 'yueyawan', 'shuiban', 'youban', 'siban', 'yiwu', 'yahen', 'zhehen', 'yaozhe']
