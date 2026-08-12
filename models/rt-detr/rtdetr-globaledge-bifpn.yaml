@@ -1,0 +1,67 @@
+# RT-DETR-R18 + GlobalEdge Backbone + BiFPN Neck
+# 组合 GlobalEdge 边缘增强 backbone 和 BiFPN 加权特征融合 neck
+
+nc: 6
+scales:
+  l: [1.00, 1.00, 1024]
+fusion_mode: bifpn
+node_mode: RepC3
+head_channel: 256
+
+backbone:
+  # Stem
+  - [-1, 1, ConvNormLayer, [32, 3, 2, None, False, 'relu']]     # 0-P1/2
+  - [-1, 1, ConvNormLayer, [32, 3, 1, None, False, 'relu']]     # 1
+  - [-1, 1, ConvNormLayer, [64, 3, 1, None, False, 'relu']]     # 2
+  - [-1, 1, nn.MaxPool2d, [3, 2, 1]]                            # 3-P2/4
+
+  # Multi-scale edge generator
+  - [-1, 1, MutilScaleEdgeInfoGenetator, [[64, 128, 256]]]       # 4
+  - [4, 1, GetIndexOutput, [0]]                                   # 5-edge P3/8
+  - [4, 1, GetIndexOutput, [1]]                                   # 6-edge P4/16
+  - [4, 1, GetIndexOutput, [2]]                                   # 7-edge P5/32
+
+  # ResNet stages + ConvEdgeFusion
+  - [3, 1, Blocks, [64, BasicBlock, 2, 2, 'relu']]               # 8-P2/4
+  - [-1, 1, Blocks, [128, BasicBlock, 2, 3, 'relu']]             # 9
+  - [[5, -1], 1, ConvEdgeFusion, [128]]                          # 10-P3/8
+  - [-1, 1, Blocks, [256, BasicBlock, 2, 4, 'relu']]             # 11
+  - [[6, -1], 1, ConvEdgeFusion, [256]]                          # 12-P4/16
+  - [-1, 1, Blocks, [512, BasicBlock, 2, 5, 'relu']]             # 13
+  - [[7, -1], 1, ConvEdgeFusion, [512]]                          # 14-P5/32
+
+head:
+  # AIFI encoder (from P5 fused #14)
+  - [-1, 1, Conv, [256, 1, 1, None, 1, 1, False]]               # 15 input_proj.2
+  - [-1, 1, AIFI, [1024, 8]]                                     # 16
+  - [-1, 1, Conv, [256, 1, 1]]                                   # 17 Y5
+
+  # Feature projections (from GlobalEdge fused layers)
+  - [10, 1, Conv, [head_channel]]                                 # 18-P3/8
+  - [12, 1, Conv, [head_channel]]                                 # 19-P4/16
+  - [17, 1, Conv, [head_channel]]                                 # 20-P5/32
+
+  # BiFPN top-down
+  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]                  # 21 P5->P4
+  - [[-1, 19], 1, Fusion, [fusion_mode]]                         # 22
+  - [-1, 3, node_mode, [head_channel, 0.5]]                      # 23-P4/16
+
+  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]                  # 24 P4->P3
+  - [[-1, 18], 1, Fusion, [fusion_mode]]                         # 25
+  - [-1, 3, node_mode, [head_channel, 0.5]]                      # 26-P3/8
+
+  # BiFPN bottom-up (P2 shortcut from backbone #8)
+  - [8, 1, Conv, [head_channel, 3, 2]]                           # 27 P2->P3
+  - [[-1, 18, 26], 1, Fusion, [fusion_mode]]                     # 28 triple
+  - [-1, 3, node_mode, [head_channel, 0.5]]                      # 29-P3/8
+
+  - [-1, 1, Conv, [head_channel, 3, 2]]                          # 30 P3->P4
+  - [[-1, 19, 23], 1, Fusion, [fusion_mode]]                     # 31 triple
+  - [-1, 3, node_mode, [head_channel, 0.5]]                      # 32-P4/16
+
+  - [-1, 1, Conv, [head_channel, 3, 2]]                          # 33 P4->P5
+  - [[-1, 20], 1, Fusion, [fusion_mode]]                         # 34
+  - [-1, 3, node_mode, [head_channel, 0.5]]                      # 35-P5/32
+
+  # Detection
+  - [[29, 32, 35], 1, RTDETRDecoder, [nc, 256, 300, 4, 8, 3]]  # 36

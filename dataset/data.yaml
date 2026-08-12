@@ -1,5 +1,4 @@
 # NEU-DET steel surface defect detection dataset
-path: D:/RT-DETR/RTDETR-20260623/RTDETR-main/dataset
 train: images/train
 val: images/val
 test: images/test

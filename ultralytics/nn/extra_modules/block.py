@@ -3541,14 +3541,19 @@ class HWD(nn.Module):
         self.conv = Conv(in_ch * 4, out_ch, 1, 1)
          
     def forward(self, x):
-        yL, yH = self.wt(x)
-        y_HL = yH[0][:,:,0,::]
-        y_LH = yH[0][:,:,1,::]
-        y_HH = yH[0][:,:,2,::]
-        x = torch.cat([yL, y_HL, y_LH, y_HH], dim=1)        
-        x = self.conv(x)
+        output_dtype = x.dtype
+        # pytorch_wavelets keeps Haar filters in FP32, so isolate the DWT
+        # path from AMP and cast its output back for the surrounding model.
+        with torch.autocast(device_type=x.device.type, enabled=False):
+            x_fp32 = x.float()
+            yL, yH = self.wt(x_fp32)
+            y_HL = yH[0][:, :, 0, ::]
+            y_LH = yH[0][:, :, 1, ::]
+            y_HH = yH[0][:, :, 2, ::]
+            x_out = torch.cat([yL, y_HL, y_LH, y_HH], dim=1)
+            x_out = self.conv(x_out)
 
-        return x
+        return x_out.to(output_dtype)
 
 ######################################## HWD end ########################################
 

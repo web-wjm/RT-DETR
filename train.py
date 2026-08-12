@@ -14,7 +14,7 @@ if __name__ == '__main__':
         cache=True,
         imgsz=640,
         epochs=300,
-        batch=16,
+        batch=8,
         workers=8,
         device=0,
         amp=True,
