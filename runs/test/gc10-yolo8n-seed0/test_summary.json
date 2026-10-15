@@ -1,0 +1,19 @@
+{
+  "model": "runs/detect/runs/train/yolo8n-gc10-seed0/weights/best.pt",
+  "data": "dataset/GC10-DET/data.yaml",
+  "split": "test",
+  "imgsz": 800,
+  "batch": 8,
+  "precision": 0.701526137003808,
+  "recall": 0.47360730253253924,
+  "f1": 0.5217031396035742,
+  "map50": 0.5162256871384185,
+  "map75": 0.24511758474205858,
+  "map50_95": 0.2545621477207959,
+  "speed_ms_per_image": {
+    "preprocess": 0.9774628540743953,
+    "inference": 1.6009231300457665,
+    "loss": 0.0011732072933860447,
+    "postprocess": 0.3912524036739184
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "model": "runs/train/rtdetr-r18-neu-slimneck-innergiou/weights/best.pt",
+  "data": "dataset/data.yaml",
+  "split": "test",
+  "imgsz": 640,
+  "batch": 8,
+  "precision": 0.7601198989486497,
+  "recall": 0.6803793831075416,
+  "f1": 0.7098136468078226,
+  "map50": 0.7261067992431478,
+  "map75": 0.4487690751422571,
+  "map50_95": 0.42907578365189,
+  "speed_ms_per_image": {
+    "preprocess": 0.40618871850721067,
+    "inference": 4.458811890155187,
+    "loss": 0.001571275211348305,
+    "postprocess": 0.21622541645796095
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "model": "runs/train/rtdetr-r18-gc10-fixed42-slimneck-800-seed2/weights/best.pt",
+  "data": "dataset/GC10-DET/data.yaml",
+  "split": "test",
+  "imgsz": 800,
+  "batch": 8,
+  "precision": 0.7460140335112001,
+  "recall": 0.5649223765284307,
+  "f1": 0.6127395858146235,
+  "map50": 0.6010918391404431,
+  "map75": 0.25703342857891875,
+  "map50_95": 0.300864192586075,
+  "speed_ms_per_image": {
+    "preprocess": 0.7619080336197563,
+    "inference": 5.874542568040931,
+    "loss": 0.0019996062568996263,
+    "postprocess": 0.25226033252218494
+  }
+}

@@ -14,6 +14,7 @@ NUM_CLASSES = 10
 def main():
     per_split = {}
     split_stems = {}
+    split_groups = {}
     class_counts = defaultdict(Counter)
     image_errors = []
     invalid_lines = []
@@ -30,6 +31,7 @@ def main():
         image_stems = {p.stem for p in images}
         label_stems = {p.stem for p in labels}
         split_stems[split] = image_stems
+        split_groups[split] = {stem.rsplit("_", 1)[0] for stem in image_stems}
         per_split[split] = {
             "images": len(images),
             "labels": len(labels),
@@ -82,9 +84,11 @@ def main():
                 seen_rows.add(normalized_row)
 
     split_overlap = {}
+    group_overlap = {}
     for index, left in enumerate(SPLITS):
         for right in SPLITS[index + 1:]:
             split_overlap[f"{left}-{right}"] = sorted(split_stems[left] & split_stems[right])
+            group_overlap[f"{left}-{right}"] = sorted(split_groups[left] & split_groups[right])
 
     duplicate_content = [items for items in content_hashes.values() if len(items) > 1]
 
@@ -94,6 +98,7 @@ def main():
     print("total_labels", sum(item["labels"] for item in per_split.values()))
     print("class_counts", {split: dict(sorted(counts.items())) for split, counts in class_counts.items()})
     print("split_stem_overlap", {key: len(value) for key, value in split_overlap.items()})
+    print("acquisition_group_overlap", {key: len(value) for key, value in group_overlap.items()})
     print("duplicate_image_content", len(duplicate_content), duplicate_content[:5])
     print("empty_labels", len(empty_labels), empty_labels[:5])
     print("invalid_lines", len(invalid_lines), invalid_lines[:10])

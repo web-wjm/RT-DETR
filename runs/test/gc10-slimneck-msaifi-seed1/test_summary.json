@@ -1,0 +1,19 @@
+{
+  "model": "runs/train/rtdetr-r18-gc10-fixed42-slimneck-msaifi-800-seed1/weights/best.pt",
+  "data": "dataset/GC10-DET/data.yaml",
+  "split": "test",
+  "imgsz": 800,
+  "batch": 8,
+  "precision": 0.7632622759140841,
+  "recall": 0.5730413462604568,
+  "f1": 0.6067255271305607,
+  "map50": 0.5771045222814846,
+  "map75": 0.26321665952666257,
+  "map50_95": 0.2958316434726935,
+  "speed_ms_per_image": {
+    "preprocess": 0.6770040677941364,
+    "inference": 8.78161969392196,
+    "loss": 0.001881433569866678,
+    "postprocess": 0.4223574762759001
+  }
+}

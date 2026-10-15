@@ -1,0 +1,19 @@
+{
+  "model": "runs/train/rtdetr-r18-neu-slimneck-seed2/weights/best.pt",
+  "data": "dataset/data.yaml",
+  "split": "test",
+  "imgsz": 640,
+  "batch": 8,
+  "precision": 0.7167956313287824,
+  "recall": 0.6770264401911538,
+  "f1": 0.68504359195139,
+  "map50": 0.7230523148004866,
+  "map75": 0.45521210182054966,
+  "map50_95": 0.43756289362017975,
+  "speed_ms_per_image": {
+    "preprocess": 0.46156693208701494,
+    "inference": 5.3425829348968845,
+    "loss": 0.0021237728780486046,
+    "postprocess": 0.3208480637891706
+  }
+}

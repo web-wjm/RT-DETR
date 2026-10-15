@@ -43,7 +43,12 @@ class DETRLoss(nn.Module):
                  use_emasvfl=False, # EMASlideVarifocalLoss
                  use_mal=False, # CVPR2025-DEIM MAL
                  use_uni_match=False,
-                 uni_match_ind=0):
+                 uni_match_ind=0,
+                 iou_loss='giou',
+                 inner_iou_ratio=0.7,
+                 inner_iou_ratio_min=0.5,
+                 inner_iou_ratio_max=1.1,
+                 inner_iou_adaptive_power=1.0):
         """
         DETR loss function.
 
@@ -74,6 +79,17 @@ class DETRLoss(nn.Module):
         self.use_uni_match = use_uni_match
         self.uni_match_ind = uni_match_ind
         self.device = None
+        if iou_loss not in {'giou', 'inner_giou', 'adaptive_inner_giou', 'stage_aware_inner_giou'}:
+            raise ValueError(f"Unsupported RT-DETR IoU loss: {iou_loss}")
+        if not 0 < inner_iou_ratio_min <= inner_iou_ratio_max:
+            raise ValueError('Inner-IoU ratio bounds must satisfy 0 < min <= max')
+        if inner_iou_adaptive_power <= 0:
+            raise ValueError('inner_iou_adaptive_power must be positive')
+        self.iou_loss = iou_loss
+        self.inner_iou_ratio = inner_iou_ratio
+        self.inner_iou_ratio_min = inner_iou_ratio_min
+        self.inner_iou_ratio_max = inner_iou_ratio_max
+        self.inner_iou_adaptive_power = inner_iou_adaptive_power
         
         # for nwd loss
         self.nwd_loss = False
@@ -133,7 +149,7 @@ class DETRLoss(nn.Module):
 
         return {name_class: loss_cls.squeeze() * self.loss_gain['class']}
 
-    def _get_loss_bbox(self, pred_bboxes, gt_bboxes, postfix=''):
+    def _get_loss_bbox(self, pred_bboxes, gt_bboxes, postfix='', iou_loss=None):
         """Calculates and returns the bounding box loss and GIoU loss for the predicted and ground truth bounding
         boxes.
         """
@@ -142,6 +158,7 @@ class DETRLoss(nn.Module):
         name_giou = f'loss_giou{postfix}'
 
         loss = {}
+        iou_loss = self.iou_loss if iou_loss is None else iou_loss
         if len(gt_bboxes) == 0:
             loss[name_bbox] = torch.tensor(0., device=self.device)
             loss[name_giou] = torch.tensor(0., device=self.device)
@@ -153,8 +170,27 @@ class DETRLoss(nn.Module):
             # loss[name_giou] = self.wiou_loss(pred_bboxes, gt_bboxes, ret_iou=False, ratio=0.7, d=0.0, u=0.95, **{'scale':0.0}) # Wise-ShapeIoU,Wise-Inner-ShapeIoU,Wise-Focaler-ShapeIoU
             # loss[name_giou] = self.wiou_loss(pred_bboxes, gt_bboxes, ret_iou=False, ratio=0.7, d=0.0, u=0.95, **{'mpdiou_hw':2}) # Wise-MPDIoU,Wise-Inner-MPDIoU,Wise-Focaler-MPDIoU
         else:
-            loss[name_giou] = 1.0 - bbox_iou(pred_bboxes, gt_bboxes, xywh=True, GIoU=True)
-            # loss[name_giou] = 1.0 - bbox_inner_iou(pred_bboxes, gt_bboxes, xywh=True, GIoU=True, ratio=0.7) # Inner IoU
+            if iou_loss in {'inner_giou', 'adaptive_inner_giou'}:
+                ratio = self.inner_iou_ratio
+                if iou_loss == 'adaptive_inner_giou':
+                    # Low-quality matches use a larger auxiliary box; high-quality matches
+                    # use a smaller box to emphasize precise localization.
+                    with torch.no_grad():
+                        quality = bbox_iou(
+                            pred_bboxes.detach(), gt_bboxes, xywh=True
+                        ).clamp_(0.0, 1.0)
+                        ratio = self.inner_iou_ratio_min + (
+                            self.inner_iou_ratio_max - self.inner_iou_ratio_min
+                        ) * (1.0 - quality).pow(self.inner_iou_adaptive_power)
+                loss[name_giou] = 1.0 - bbox_inner_iou(
+                    pred_bboxes,
+                    gt_bboxes,
+                    xywh=True,
+                    GIoU=True,
+                    ratio=ratio,
+                )
+            else:
+                loss[name_giou] = 1.0 - bbox_iou(pred_bboxes, gt_bboxes, xywh=True, GIoU=True)
             # loss[name_giou] = 1.0 - bbox_focaler_iou(pred_bboxes, gt_bboxes, xywh=True, GIoU=True, d=0.0, u=0.95) # Focaler IoU
             # loss[name_giou] = 1.0 - bbox_mpdiou(pred_bboxes, gt_bboxes, xywh=True, mpdiou_hw=2) # MPDIoU
             # loss[name_giou] = 1.0 - bbox_inner_mpdiou(pred_bboxes, gt_bboxes, xywh=True, mpdiou_hw=2, ratio=0.7) # Inner-MPDIoU
@@ -226,6 +262,7 @@ class DETRLoss(nn.Module):
                                          gt_mask=gt_mask)
         for i, (aux_bboxes, aux_scores) in enumerate(zip(pred_bboxes, pred_scores)):
             aux_masks = masks[i] if masks is not None else None
+            aux_iou_loss = 'inner_giou' if self.iou_loss == 'stage_aware_inner_giou' else None
             loss_ = self._get_loss(aux_bboxes,
                                    aux_scores,
                                    gt_bboxes,
@@ -234,7 +271,8 @@ class DETRLoss(nn.Module):
                                    masks=aux_masks,
                                    gt_mask=gt_mask,
                                    postfix=postfix,
-                                   match_indices=match_indices)
+                                   match_indices=match_indices,
+                                   iou_loss=aux_iou_loss)
             loss[0] += loss_[f'loss_class{postfix}']
             loss[1] += loss_[f'loss_bbox{postfix}']
             loss[2] += loss_[f'loss_giou{postfix}']
@@ -279,7 +317,8 @@ class DETRLoss(nn.Module):
                   masks=None,
                   gt_mask=None,
                   postfix='',
-                  match_indices=None):
+                  match_indices=None,
+                  iou_loss=None):
         """Get losses."""
         if match_indices is None:
             match_indices = self.matcher(pred_bboxes,
@@ -303,7 +342,7 @@ class DETRLoss(nn.Module):
 
         loss = {}
         loss.update(self._get_loss_class(pred_scores, targets, gt_scores, len(gt_bboxes), postfix))
-        loss.update(self._get_loss_bbox(pred_bboxes, gt_bboxes, postfix))
+        loss.update(self._get_loss_bbox(pred_bboxes, gt_bboxes, postfix, iou_loss=iou_loss))
         # if masks is not None and gt_mask is not None:
         #     loss.update(self._get_loss_mask(masks, gt_mask, match_indices, postfix))
         return loss
@@ -323,13 +362,15 @@ class DETRLoss(nn.Module):
         match_indices = kwargs.get('match_indices', None)
         gt_cls, gt_bboxes, gt_groups = batch['cls'], batch['bboxes'], batch['gt_groups']
 
+        final_iou_loss = 'giou' if self.iou_loss == 'stage_aware_inner_giou' else None
         total_loss = self._get_loss(pred_bboxes[-1],
                                     pred_scores[-1],
                                     gt_bboxes,
                                     gt_cls,
                                     gt_groups,
                                     postfix=postfix,
-                                    match_indices=match_indices)
+                                    match_indices=match_indices,
+                                    iou_loss=final_iou_loss)
 
         if self.aux_loss:
             total_loss.update(

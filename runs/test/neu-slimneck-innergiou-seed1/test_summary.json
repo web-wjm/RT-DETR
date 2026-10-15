@@ -1,0 +1,19 @@
+{
+  "model": "runs/train/rtdetr-r18-neu-slimneck-innergiou-seed1/weights/best.pt",
+  "data": "dataset/data.yaml",
+  "split": "test",
+  "imgsz": 640,
+  "batch": 8,
+  "precision": 0.7068515235350169,
+  "recall": 0.6789985842469566,
+  "f1": 0.6787817280965811,
+  "map50": 0.7110144142109255,
+  "map75": 0.4632588457290317,
+  "map50_95": 0.4306168825024352,
+  "speed_ms_per_image": {
+    "preprocess": 0.44450020878077434,
+    "inference": 5.251549266801109,
+    "loss": 0.0018827149788831871,
+    "postprocess": 0.5394910974256227
+  }
+}

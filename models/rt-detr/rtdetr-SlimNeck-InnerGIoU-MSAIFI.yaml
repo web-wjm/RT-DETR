@@ -1,0 +1,69 @@
+# RT-DETR-R18 + SlimNeck + Inner-GIoU + Multi-scale AIFI.
+#
+# Multi-scale AIFI applies intra-scale self-attention to BOTH P4 (stride 16)
+# and P5 (stride 32) BEFORE the cross-scale SlimNeck fusion, instead of the
+# standard RT-DETR encoder that attends to P5 exclusively.
+#
+# Motivation: the standard AIFI only encodes the stride-32 feature, so the fine
+# detail of small/subtle defects (GC10-DET: inclusion, silk spot, crease, rolled
+# pit) is already lost before the transformer encoder sees it. Encoding P4 as
+# well gives the encoder access to a higher-resolution feature for those classes.
+#
+# Cost: the P4 branch adds a 50x50=2500-token self-attention (4x the P5 tokens),
+# so this config is slower than SlimNeck+Inner-GIoU. Params still grow only by
+# one extra AIFI layer.
+#
+# Inner-GIoU is enabled only because iou_loss is set to inner_giou below.
+
+nc: 10
+iou_loss: inner_giou
+inner_iou_ratio: 0.7   # tunable: sweep 0.5 / 0.6 / 0.8
+
+scales:
+  # [depth, width, max_channels]
+  l: [1.00, 1.00, 1024]
+
+backbone:
+  # [from, repeats, module, args]
+  - [-1, 1, ConvNormLayer, [32, 3, 2, None, False, 'relu']] # 0-P1/2
+  - [-1, 1, ConvNormLayer, [32, 3, 1, None, False, 'relu']] # 1
+  - [-1, 1, ConvNormLayer, [64, 3, 1, None, False, 'relu']] # 2
+  - [-1, 1, nn.MaxPool2d, [3, 2, 1]] # 3-P2/4
+  - [-1, 1, Blocks, [64, BasicBlock, 2, 2, 'relu']] # 4-P2/4
+  - [-1, 1, Blocks, [128, BasicBlock, 2, 3, 'relu']] # 5-P3/8
+  - [-1, 1, Blocks, [256, BasicBlock, 2, 4, 'relu']] # 6-P4/16
+  - [-1, 1, Blocks, [512, BasicBlock, 2, 5, 'relu']] # 7-P5/32
+
+head:
+  # ===== Multi-scale AIFI encoder (intra-scale attention) =====
+  # P5 branch (stride 32)
+  - [-1, 1, GSConv, [256, 1, 1, None, 1, 1, False]] # 8  input_proj.2 (P5 -> 256)
+  - [-1, 1, AIFI, [1024, 8]] # 9  AIFI(P5)
+  - [-1, 1, GSConv, [256, 1, 1]] # 10 Y5
+
+  # P4 branch (stride 16) -- NEW multi-scale AIFI
+  - [6, 1, GSConv, [256, 1, 1, None, 1, 1, False]] # 11 input_proj.1 (P4 -> 256)
+  - [-1, 1, AIFI, [1024, 8]] # 12 AIFI(P4)
+  - [-1, 1, GSConv, [256, 1, 1]] # 13 Y4_enc
+
+  # ===== SlimNeck top-down =====
+  - [10, 1, nn.Upsample, [None, 2, 'nearest']] # 14 upsample Y5 -> P4 size
+  - [[-1, 13], 1, Concat, [1]] # 15 concat(up-Y5, Y4_enc)
+  - [-1, 3, VoVGSCSP, [256]] # 16 fpn_blocks.0
+  - [-1, 1, GSConv, [256, 1, 1]] # 17 Y4
+
+  - [-1, 1, nn.Upsample, [None, 2, 'nearest']] # 18 upsample Y4 -> P3 size
+  - [5, 1, GSConv, [256, 1, 1, None, 1, 1, False]] # 19 input_proj.0 (P3 -> 256)
+  - [[-2, -1], 1, Concat, [1]] # 20 concat(up-Y4, P3)
+  - [-1, 3, VoVGSCSP, [256]] # 21 P3 output
+
+  # ===== SlimNeck bottom-up =====
+  - [-1, 1, GSConv, [256, 3, 2]] # 22 downsample P3 -> P4
+  - [[-1, 17], 1, Concat, [1]] # 23 concat(down-P3, Y4)
+  - [-1, 3, VoVGSCSP, [256]] # 24 P4 output
+
+  - [-1, 1, GSConv, [256, 3, 2]] # 25 downsample P4 -> P5
+  - [[-1, 10], 1, Concat, [1]] # 26 concat(down-P4, Y5)
+  - [-1, 3, VoVGSCSP, [256]] # 27 P5 output
+
+  - [[21, 24, 27], 1, RTDETRDecoder, [nc, 256, 300, 4, 8, 3]] # 28 Detect(P3, P4, P5)

@@ -34,7 +34,8 @@ def create_wavelet_filter(wave, in_size, out_size, type=torch.float):
 def wavelet_transform(x, filters):
     b, c, h, w = x.shape
     pad = (filters.shape[2] // 2 - 1, filters.shape[3] // 2 - 1)
-    x = F.conv2d(x, filters.to(x.device), stride=2, groups=c, padding=pad)
+    filters = filters.to(device=x.device, dtype=x.dtype)
+    x = F.conv2d(x, filters, stride=2, groups=c, padding=pad)
     x = x.reshape(b, c, 4, h // 2, w // 2)
     return x
 
@@ -43,7 +44,8 @@ def inverse_wavelet_transform(x, filters):
     b, c, _, h_half, w_half = x.shape
     pad = (filters.shape[2] // 2 - 1, filters.shape[3] // 2 - 1)
     x = x.reshape(b, c * 4, h_half, w_half)
-    x = F.conv_transpose2d(x, filters.to(x.device), stride=2, groups=c, padding=pad)
+    filters = filters.to(device=x.device, dtype=x.dtype)
+    x = F.conv_transpose2d(x, filters, stride=2, groups=c, padding=pad)
     return x
 
 
@@ -117,7 +119,13 @@ class WTConv2d(nn.Module):
 
         if self.stride > 1:
             self.stride_filter = nn.Parameter(torch.ones(in_channels, 1, 1, 1), requires_grad=False)
-            self.do_stride = lambda x_in: F.conv2d(x_in, self.stride_filter.to(x_in.device), bias=None, stride=self.stride, groups=in_channels)
+            self.do_stride = lambda x_in: F.conv2d(
+                x_in,
+                self.stride_filter.to(device=x_in.device, dtype=x_in.dtype),
+                bias=None,
+                stride=self.stride,
+                groups=in_channels,
+            )
         else:
             self.do_stride = None
 

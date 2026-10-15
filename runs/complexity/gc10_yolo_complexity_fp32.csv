@@ -1,0 +1,3 @@
+model,loader,imgsz,precision_mode,parameters,parameters_m,trainable_parameters,gflops,checkpoint_mib,latency_ms_mean,latency_ms_std,latency_ms_p50,latency_ms_p95,fps_batch1,peak_cuda_allocated_mib,peak_cuda_reserved_mib
+runs/detect/runs/train/yolo8n-gc10-seed0/weights/best.pt,YOLO,800,FP32,3007598,3.007598,0,12.6444,5.962985038757324,3.295242177963257,0.7470137404160563,3.171328067779541,3.266432046890259,303.4678321027336,55.0146484375,68.0
+runs/detect/runs/train/yolov8s-gc10-seed0/weights/best.pt,YOLO,800,FP32,11129454,11.129454,0,44.4564,21.480257987976074,3.425474109649658,0.852115758791647,3.2799038887023926,3.409183979034424,291.93039211213755,141.681640625,170.0

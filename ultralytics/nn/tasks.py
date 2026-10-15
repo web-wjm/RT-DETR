@@ -448,9 +448,27 @@ class RTDETRDetectionModel(DetectionModel):
 
     def init_criterion(self):
         """Initialize the loss criterion for the RTDETRDetectionModel."""
+        import inspect
+
         from ultralytics.models.utils.loss import RTDETRDetectionLoss
 
-        return RTDETRDetectionLoss(nc=self.nc, use_vfl=True, use_sl=False, use_emasl=False, use_svfl=False, use_emasvfl=False, use_mal=False)
+        loss_kwargs = {
+            'nc': getattr(self, 'nc', self.yaml['nc']),
+            'use_vfl': True,
+            'use_sl': False,
+            'use_emasl': False,
+            'use_svfl': False,
+            'use_emasvfl': False,
+            'use_mal': False,
+            'iou_loss': self.yaml.get('iou_loss', 'giou'),
+            'inner_iou_ratio': float(self.yaml.get('inner_iou_ratio', 0.7)),
+            'inner_iou_ratio_min': float(self.yaml.get('inner_iou_ratio_min', 0.5)),
+            'inner_iou_ratio_max': float(self.yaml.get('inner_iou_ratio_max', 1.1)),
+            'inner_iou_adaptive_power': float(self.yaml.get('inner_iou_adaptive_power', 1.0)),
+        }
+        supported = inspect.signature(RTDETRDetectionLoss.__init__).parameters
+        loss_kwargs = {key: value for key, value in loss_kwargs.items() if key in supported}
+        return RTDETRDetectionLoss(**loss_kwargs)
 
     def loss(self, batch, preds=None):
         """
@@ -774,7 +792,7 @@ def parse_model(d, ch, verbose=True, warehouse_manager=None):  # model_dict, inp
                  AKConv, C3_AKConv, C2f_AKConv, C3_RFAConv, C2f_RFAConv, C3_RFCAConv, C2f_RFCAConv, C3_RFCBAMConv, C2f_RFCBAMConv,
                  RFAConv, RFCAConv, RFCBAMConv, C3_Conv3XC, C2f_Conv3XC, C3_SPAB, C2f_SPAB, Conv3XCC3, DRBC3, DBBC3,
                  C3_UniRepLKNetBlock, C2f_UniRepLKNetBlock, C3_DRB, C2f_DRB, C3_DWR_DRB, C2f_DWR_DRB, DWRC3_DRB,
-                 C2f_DBB, C3_DBB, CSP_EDLAN, GSConv, VoVGSCSP, VoVGSCSPC,
+                 C2f_DBB, C3_DBB, CSP_EDLAN, GSConv, VoVGSCSP, VoVGSCSPClean, VoVGSCSPC,
                  C3_AggregatedAtt, C2f_AggregatedAtt, SPDConv,
                  C3_DCNv4, C2f_DCNv4, BasicBlock_DCNv4, BottleNeck_DCNv4, HWD,
                  C3_SWC, C2f_SWC, C3_iRMB_DRB, C2f_iRMB_DRB, C3_iRMB_SWC, C2f_iRMB_SWC,
@@ -817,7 +835,7 @@ def parse_model(d, ch, verbose=True, warehouse_manager=None):  # model_dict, inp
                      C3_Faster, C2f_Faster, C3_Faster_EMA, C2f_Faster_EMA, C3_Faster_Rep, C2f_Faster_Rep, C3_Faster_Rep_EMA, C2f_Faster_Rep_EMA,
                      C3_AKConv, C2f_AKConv, C3_RFAConv, C2f_RFAConv, C3_RFCAConv, C2f_RFCAConv, C3_RFCBAMConv, C2f_RFCBAMConv,
                      C3_Conv3XC, C2f_Conv3XC, C3_SPAB, C2f_SPAB, C3_UniRepLKNetBlock, C2f_UniRepLKNetBlock, C3_DRB, C2f_DRB, C3_DWR_DRB, C2f_DWR_DRB, DWRC3_DRB,
-                     Conv3XCC3, DRBC3, DBBC3, C2f_DBB, C3_DBB, CSP_EDLAN, VoVGSCSP, VoVGSCSPC,
+                     Conv3XCC3, DRBC3, DBBC3, C2f_DBB, C3_DBB, CSP_EDLAN, VoVGSCSP, VoVGSCSPClean, VoVGSCSPC,
                      C3_AggregatedAtt, C2f_AggregatedAtt, C3_DCNv4, C2f_DCNv4, C3_SWC, C2f_SWC, C3_iRMB_DRB, C2f_iRMB_DRB, C3_iRMB_SWC, C2f_iRMB_SWC,
                      C3_VSS, C2f_VSS, C3_LVMB, C2f_LVMB, C3_ContextGuided, C2f_ContextGuided, RetBlockC3, C3_RetBlock, C2f_RetBlock,
                      C3_PKIModule, C2f_PKIModule, C3_FADC, C2f_FADC, C3_PPA, C2f_PPA, RGCSPELAN, C3_Faster_CGLU, C2f_Faster_CGLU,
@@ -869,7 +887,7 @@ def parse_model(d, ch, verbose=True, warehouse_manager=None):  # model_dict, inp
             args[0] = d[args[0]]
             c1, c2 = [ch[x] for x in f], (sum([ch[x] for x in f]) if args[0] == 'concat' else ch[f[0]])
             args = [c1, args[0]]
-        elif m is RTDETRDecoder:  # special case, channels arg must be passed in index 1
+        elif m is RTDETRDecoder or getattr(m, '__name__', '') == 'RTDETRDecoderMLPQS':  # optional MLP-QS head
             args.insert(1, [ch[x] for x in f])
         elif isinstance(m, str):
             t = m
@@ -982,6 +1000,12 @@ def parse_model(d, ch, verbose=True, warehouse_manager=None):  # model_dict, inp
             args = [c1]
         elif m in {CGAFusion, CAFMFusion, SDFM, PSFM}:
             c2 = ch[f[1]]
+            args = [c2, *args]
+        elif m is CDGFFusion:
+            c2 = ch[f[0]]
+            args = [c2, *args]
+        elif m is DDE:
+            c2 = ch[f]
             args = [c2, *args]
         elif m in {ContextGuideFusionModule}:
             c1 = [ch[x] for x in f]

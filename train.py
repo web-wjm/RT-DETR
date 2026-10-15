@@ -10,7 +10,7 @@ if __name__ == '__main__':
     model = RTDETR('models/rt-detr/rtdetr-r18.yaml')
 
     model.train(
-        data='dataset/data.yaml',
+        data='dataset/NEU-DET/data.yaml',
         cache=True,
         imgsz=640,
         epochs=300,

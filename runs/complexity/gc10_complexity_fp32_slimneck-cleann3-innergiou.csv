@@ -1,0 +1,2 @@
+model,loader,imgsz,precision_mode,parameters,parameters_m,trainable_parameters,gflops,checkpoint_mib,latency_ms_mean,latency_ms_std,latency_ms_p50,latency_ms_p95,fps_batch1,peak_cuda_allocated_mib,peak_cuda_reserved_mib
+runs/train/rtdetr-r18-gc10-fixed42-slimneck-cleann3-innergiou-800/weights/best.pt,RTDETR,800,FP32,18719672,18.719672,0,82.2579456,71.89091300964355,22.39516259765625,2.537897022717415,21.329919815063477,27.33670425415039,44.65250009413436,272.1259765625,362.0

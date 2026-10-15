@@ -20,9 +20,8 @@ import os
 import xml.etree.ElementTree as ET
 import shutil
 from pathlib import Path
-import random
-
-random.seed(42)
+import subprocess
+import sys
 
 # ========== 配置 ==========
 # GC10-DET 源数据路径（Kaggle 下载位置）
@@ -59,10 +58,13 @@ VAL_RATIO = 0.1
 # ========== 处理 ==========
 print("=== GC10-DET: VOC -> YOLO 格式转换 ===\n")
 
-# 创建目录结构
+# 清理旧划分，确保重复运行时不会残留旧文件或产生重复 stem。
 for split in ['train', 'val', 'test']:
-    Path(DST_DIR, 'images', split).mkdir(parents=True, exist_ok=True)
-    Path(DST_DIR, 'labels', split).mkdir(parents=True, exist_ok=True)
+    for root_name in ['images', 'labels']:
+        split_dir = Path(DST_DIR, root_name, split)
+        if split_dir.exists():
+            shutil.rmtree(split_dir)
+        split_dir.mkdir(parents=True, exist_ok=True)
 
 # Step 1: 收集所有有效样本
 valid_samples = []
@@ -140,16 +142,12 @@ for xml_path in xml_files:
 print(f"有效样本: {len(valid_samples)}")
 print(f"跳过: d标签={skipped['d']}, 无图片={skipped['no_image']}, 无XML={skipped['no_xml']}, 其他={skipped['other']}")
 
-# Step 2: 划分数据集
-random.shuffle(valid_samples)
+# Step 2: 先汇总样本，随后执行序列分组的多标签分层划分
 n_total = len(valid_samples)
-n_train = int(n_total * TRAIN_RATIO)
-n_val = int(n_total * VAL_RATIO)
-
 splits = {
-    'train': valid_samples[:n_train],
-    'val': valid_samples[n_train:n_train + n_val],
-    'test': valid_samples[n_train + n_val:],
+    'train': valid_samples,
+    'val': [],
+    'test': [],
 }
 
 # Step 3: 复制图片并写入标签
@@ -184,6 +182,9 @@ with open(yaml_path, 'w') as f:
 
 print(f"\n=== GC10-DET 数据集准备完成 ===")
 print(f"输出目录: {DST_DIR}")
-print(f"总样本: {n_total} (train={n_train}, val={n_val}, test={n_total - n_train - n_val})")
+print(f"总样本: {n_total}")
 print(f"类别数: {len(CLASS_NAMES)}")
 print(f"YAML: {yaml_path}")
+
+split_script = Path(__file__).resolve().parent / 'split_gc10_det.py'
+subprocess.run([sys.executable, str(split_script), '--apply'], check=True)

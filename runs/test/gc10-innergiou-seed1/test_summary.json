@@ -1,0 +1,19 @@
+{
+  "model": "runs/train/rtdetr-r18-gc10-fixed42-innergiou-800-seed1/weights/best.pt",
+  "data": "dataset/GC10-DET/data.yaml",
+  "split": "test",
+  "imgsz": 800,
+  "batch": 8,
+  "precision": 0.6954636770809834,
+  "recall": 0.5265437070443094,
+  "f1": 0.5619236215641619,
+  "map50": 0.5709467114441915,
+  "map75": 0.2572697441801658,
+  "map50_95": 0.2852046262481715,
+  "speed_ms_per_image": {
+    "preprocess": 0.7618126661881157,
+    "inference": 5.68428661512292,
+    "loss": 0.0021302181741465693,
+    "postprocess": 0.2538162729014521
+  }
+}

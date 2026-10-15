@@ -116,7 +116,7 @@ __all__ = ['Ghost_HGBlock', 'Rep_HGBlock', 'DWRC3', 'C3_DWR', 'C2f_DWR', 'BasicB
            'C3_UniRepLKNetBlock', 'C2f_UniRepLKNetBlock', 'C3_DRB', 'C2f_DRB', 'BasicBlock_DRB', 'BottleNeck_DRB',
            'DWRC3_DRB', 'C3_DWR_DRB', 'C2f_DWR_DRB', 'Conv3XCC3', 'DRBC3', 'DBBC3', 'C2f_DBB', 'C3_DBB', 'BasicBlock_DBB', 'BottleNeck_DBB', 'CSP_EDLAN',
            'BasicBlock_DualConv', 'BottleNeck_DualConv', 'Zoom_cat', 'ScalSeq', 'DynamicScalSeq', 'Add', 'asf_attention_model',
-           'GSConv', 'VoVGSCSP', 'VoVGSCSPC', 'BasicBlock_AggregatedAtt', 'BottleNeck_AggregatedAtt',
+           'GSConv', 'VoVGSCSP', 'VoVGSCSPClean', 'VoVGSCSPC', 'CDGFFusion', 'DDE', 'BasicBlock_AggregatedAtt', 'BottleNeck_AggregatedAtt',
            'C3_AggregatedAtt', 'C2f_AggregatedAtt', 'SDI',
            'SimFusion_3in', 'SimFusion_4in', 'IFM', 'InjectionMultiSum_Auto_pool', 'PyramidPoolAgg', 'AdvPoolFusion', 'TopBasicLayer',
            'ChannelAttention_HSFPN', 'ELA_HSFPN', 'CA_HSFPN', 'Multiply', 'DySample', 'CARAFE', 'HWD',
@@ -2657,13 +2657,118 @@ class VoVGSCSP(nn.Module):
         y = self.cv2(x)
         return self.cv3(torch.cat((y, x1), dim=1))
 
+class VoVGSCSPClean(nn.Module):
+    """VoVGSCSP without the unused ``res`` branch present in the legacy module."""
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):
+        super().__init__()
+        c_ = int(c2 * e)
+        self.cv1 = Conv(c1, c_, 1, 1)
+        self.cv2 = Conv(c1, c_, 1, 1)
+        self.gsb = nn.Sequential(*(GSBottleneck(c_, c_, e=1.0) for _ in range(n)))
+        self.cv3 = Conv(2 * c_, c2, 1)
+
+    def forward(self, x):
+        x1 = self.gsb(self.cv1(x))
+        y = self.cv2(x)
+        return self.cv3(torch.cat((y, x1), dim=1))
+
 class VoVGSCSPC(VoVGSCSP):
     # cheap VoVGSCSP module with GSBottleneck
     def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):
         super().__init__(c1, c2)
         c_ = int(c2 * 0.5)  # hidden channels
         self.gsb = GSBottleneckC(c_, c_, 1, 1)
-        
+
+
+class CDGFFusion(nn.Module):
+    """Cross-scale detail-guided fusion for two aligned feature maps.
+
+    The absolute difference between the top-down and lateral features is used
+    as a lightweight reliability cue. Channel and spatial gates then decide
+    whether each location should rely more on semantic or detail features.
+    """
+
+    def __init__(self, dim, reduction=16, spatial_kernel=7):
+        super().__init__()
+        hidden = max(dim // reduction, 8)
+        self.channel_gate = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
+            nn.Conv2d(dim, hidden, 1, bias=True),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(hidden, dim, 1, bias=True),
+        )
+        padding = spatial_kernel // 2
+        self.spatial_gate = nn.Conv2d(2, 1, spatial_kernel, padding=padding, bias=True)
+
+    def forward(self, x):
+        if not isinstance(x, (list, tuple)) or len(x) != 2:
+            raise TypeError('CDGFFusion expects two feature maps: [top_down, lateral]')
+
+        top_down, lateral = x
+        if top_down.shape != lateral.shape:
+            raise ValueError(
+                f'CDGFFusion requires aligned feature maps, got '
+                f'{tuple(top_down.shape)} and {tuple(lateral.shape)}'
+            )
+
+        detail = torch.abs(top_down - lateral)
+        channel_logits = self.channel_gate(detail)
+        spatial_descriptor = torch.cat(
+            (detail.mean(dim=1, keepdim=True), detail.amax(dim=1, keepdim=True)), dim=1
+        )
+        spatial_logits = self.spatial_gate(spatial_descriptor)
+        gate = torch.sigmoid(channel_logits + spatial_logits)
+
+        # The lateral branch preserves local defect detail; the top-down branch
+        # supplies semantic context when the cross-scale difference is small.
+        return gate * lateral + (1.0 - gate) * top_down
+
+
+class DDE(nn.Module):
+    """Directional defect enhancement for texture-oriented industrial defects.
+
+    Depthwise horizontal and vertical branches capture elongated structures.
+    Their disagreement produces a spatial gate that suppresses less useful
+    background responses while retaining a residual path for stable training.
+    """
+
+    def __init__(self, dim, gate_kernel=7):
+        super().__init__()
+        self.local = nn.Sequential(
+            nn.Conv2d(dim, dim, 3, padding=1, groups=dim, bias=False),
+            nn.BatchNorm2d(dim),
+            nn.SiLU(inplace=True),
+        )
+        self.horizontal = nn.Sequential(
+            nn.Conv2d(dim, dim, (1, 7), padding=(0, 3), groups=dim, bias=False),
+            nn.BatchNorm2d(dim),
+            nn.SiLU(inplace=True),
+        )
+        self.vertical = nn.Sequential(
+            nn.Conv2d(dim, dim, (7, 1), padding=(3, 0), groups=dim, bias=False),
+            nn.BatchNorm2d(dim),
+            nn.SiLU(inplace=True),
+        )
+        self.fuse = nn.Sequential(
+            nn.Conv2d(dim * 3, dim, 1, bias=False),
+            nn.BatchNorm2d(dim),
+            nn.SiLU(inplace=True),
+        )
+        padding = gate_kernel // 2
+        self.gate = nn.Conv2d(2, 1, gate_kernel, padding=padding, bias=True)
+
+    def forward(self, x):
+        local = self.local(x)
+        horizontal = self.horizontal(x)
+        vertical = self.vertical(x)
+        direction_gap = torch.abs(horizontal - vertical)
+        descriptor = torch.cat(
+            (direction_gap.mean(dim=1, keepdim=True), direction_gap.amax(dim=1, keepdim=True)), dim=1
+        )
+        weight = torch.sigmoid(self.gate(descriptor))
+        directional = self.fuse(torch.cat((local, horizontal, vertical), dim=1))
+        return x + weight * directional
+
 ######################################## SlimNeck end ########################################
 
 ######################################## Resnet TransNeXt_AggregatedAttention start ########################################

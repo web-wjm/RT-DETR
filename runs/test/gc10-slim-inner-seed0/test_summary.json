@@ -1,0 +1,19 @@
+{
+  "model": "runs/train/rtdetr-r18-gc10-fixed42-slimneck-innergiou-800/weights/best.pt",
+  "data": "dataset/GC10-DET/data.yaml",
+  "split": "test",
+  "imgsz": 800,
+  "batch": 8,
+  "precision": 0.7141070916416276,
+  "recall": 0.5907976982333459,
+  "f1": 0.626611124068519,
+  "map50": 0.6049440441099532,
+  "map75": 0.2757422138197637,
+  "map50_95": 0.3142758813809669,
+  "speed_ms_per_image": {
+    "preprocess": 0.7421586824500042,
+    "inference": 6.215865715690281,
+    "loss": 0.001992350039274796,
+    "postprocess": 0.3460915192313816
+  }
+}

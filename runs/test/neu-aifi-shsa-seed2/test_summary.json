@@ -1,0 +1,19 @@
+{
+  "model": "runs/train/rtdetr-r18-neu-aifi-shsa-seed2/weights/best.pt",
+  "data": "dataset/data.yaml",
+  "split": "test",
+  "imgsz": 640,
+  "batch": 8,
+  "precision": 0.7119517845235112,
+  "recall": 0.6883971191709278,
+  "f1": 0.6927453632897781,
+  "map50": 0.7234820741385728,
+  "map75": 0.47418964722327345,
+  "map50_95": 0.43944641001282186,
+  "speed_ms_per_image": {
+    "preprocess": 0.5309115476713849,
+    "inference": 4.63436274510908,
+    "loss": 0.0015923897718591444,
+    "postprocess": 0.4499873551935287
+  }
+}

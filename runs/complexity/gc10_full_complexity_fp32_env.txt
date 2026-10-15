@@ -1,0 +1,9 @@
+date:      2026-10-04 07:51:21 UTC
+hostname:  autodl-container-1a6545bae8-aad26155
+name, driver_version, memory.total [MiB], clocks.current.sm [MHz], clocks.max.sm [MHz]
+NVIDIA GeForce RTX 4090, 595.71.05, 24564 MiB, 210 MHz, 3105 MHz
+python: 3.10.20
+torch: 2.5.1+cu124
+cuda: 12.4
+cudnn: 90100
+device: NVIDIA GeForce RTX 4090

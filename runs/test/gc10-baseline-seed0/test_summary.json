@@ -1,0 +1,19 @@
+{
+  "model": "runs/train/rtdetr-r18-gc10-fixed42-baseline-800/weights/best.pt",
+  "data": "dataset/GC10-DET/data.yaml",
+  "split": "test",
+  "imgsz": 800,
+  "batch": 8,
+  "precision": 0.4774853832974638,
+  "recall": 0.5740081094200671,
+  "f1": 0.4996348848327356,
+  "map50": 0.5191198674463982,
+  "map75": 0.2698689562935793,
+  "map50_95": 0.27169886960720296,
+  "speed_ms_per_image": {
+    "preprocess": 0.7696276125700577,
+    "inference": 5.862047361290974,
+    "loss": 0.001836859661599864,
+    "postprocess": 0.2127460811449134
+  }
+}

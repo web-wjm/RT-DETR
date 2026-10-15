@@ -5,6 +5,7 @@ import math
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.nn.init import constant_, xavier_uniform_
 
 from ultralytics.utils.tal import TORCH_1_10, dist2bbox, make_anchors
@@ -14,7 +15,7 @@ from .conv import Conv
 from .transformer import MLP, DeformableTransformerDecoder, DeformableTransformerDecoderLayer
 from .utils import bias_init_with_prob, linear_init_
 
-__all__ = 'Detect', 'Segment', 'Pose', 'Classify', 'RTDETRDecoder'
+__all__ = 'Detect', 'Segment', 'Pose', 'Classify', 'RTDETRDecoder', 'RTDETRDecoderMLPQS'
 
 
 class Detect(nn.Module):
@@ -394,3 +395,103 @@ class RTDETRDecoder(nn.Module):
         xavier_uniform_(self.query_pos_head.layers[1].weight)
         for layer in self.input_proj:
             xavier_uniform_(layer[0].weight)
+
+
+class RTDETRDecoderMLPQS(RTDETRDecoder):
+    """RT-DETR decoder with multi-level local-peak query selection (MLP-QS).
+
+    The original decoder ranks all encoder tokens with one global Top-K. MLP-QS
+    first assigns a resolution-aware query quota to every feature level and then
+    prioritizes spatial local maxima inside each level. The decoder, prediction
+    heads and number of output queries remain unchanged.
+    """
+
+    def __init__(self, nc=80, ch=(512, 1024, 2048), hd=256, nq=300, ndp=4, nh=8, ndl=6, peak_kernel=3):
+        super().__init__(nc=nc, ch=ch, hd=hd, nq=nq, ndp=ndp, nh=nh, ndl=ndl)
+        if peak_kernel < 1 or peak_kernel % 2 == 0:
+            raise ValueError('peak_kernel must be a positive odd integer')
+        self.peak_kernel = peak_kernel
+
+    @staticmethod
+    def _level_query_quotas(shapes, num_queries):
+        """Allocate queries in proportion to sqrt(number of tokens per level)."""
+        capacities = [int(h) * int(w) for h, w in shapes]
+        if num_queries > sum(capacities):
+            raise ValueError(f'num_queries={num_queries} exceeds available encoder tokens={sum(capacities)}')
+
+        weights = [math.sqrt(capacity) for capacity in capacities]
+        weight_sum = sum(weights)
+        raw_quotas = [num_queries * weight / weight_sum for weight in weights]
+        quotas = [min(capacity, int(raw)) for capacity, raw in zip(capacities, raw_quotas)]
+
+        # Largest-remainder allocation keeps the total exactly equal to num_queries.
+        remainder_order = sorted(
+            range(len(shapes)), key=lambda i: raw_quotas[i] - int(raw_quotas[i]), reverse=True)
+        remaining = num_queries - sum(quotas)
+        while remaining:
+            progressed = False
+            for i in remainder_order:
+                if quotas[i] < capacities[i]:
+                    quotas[i] += 1
+                    remaining -= 1
+                    progressed = True
+                    if remaining == 0:
+                        break
+            if not progressed:
+                raise RuntimeError('Unable to allocate all MLP-QS queries')
+        return quotas
+
+    def _select_query_indices(self, enc_outputs_scores, shapes):
+        """Return [batch, num_queries] flattened encoder indices selected by MLP-QS."""
+        quality = enc_outputs_scores.sigmoid().amax(-1)
+        quotas = self._level_query_quotas(shapes, self.num_queries)
+        selected, offset = [], 0
+        peak_bonus = 2.0  # sigmoid scores are in [0, 1], so peaks are always considered first
+
+        for (h, w), quota in zip(shapes, quotas):
+            h, w = int(h), int(w)
+            level_quality = quality[:, offset:offset + h * w]
+            score_map = level_quality.view(level_quality.shape[0], 1, h, w)
+            pooled = F.max_pool2d(
+                score_map, kernel_size=self.peak_kernel, stride=1, padding=self.peak_kernel // 2)
+            peak_mask = score_map.eq(pooled).flatten(1)
+
+            # Local peaks have priority; high-score non-peaks provide a deterministic
+            # fallback when a smooth feature map contains fewer peaks than its quota.
+            rank_score = level_quality + peak_mask.to(level_quality.dtype) * peak_bonus
+            level_indices = torch.topk(rank_score, quota, dim=1).indices + offset
+            selected.append(level_indices)
+            offset += h * w
+
+        return torch.cat(selected, dim=1)
+
+    def _get_decoder_input(self, feats, shapes, dn_embed=None, dn_bbox=None):
+        """Prepare decoder inputs using MLP-QS instead of the original global Top-K."""
+        bs = len(feats)
+        anchors, valid_mask = self._generate_anchors(shapes, dtype=feats.dtype, device=feats.device)
+        features = self.enc_output(valid_mask * feats)
+        enc_outputs_scores = self.enc_score_head(features)
+
+        topk_ind = self._select_query_indices(enc_outputs_scores, shapes)
+        feature_index = topk_ind.unsqueeze(-1).expand(-1, -1, features.shape[-1])
+        score_index = topk_ind.unsqueeze(-1).expand(-1, -1, enc_outputs_scores.shape[-1])
+        anchor_index = topk_ind.unsqueeze(-1).expand(-1, -1, anchors.shape[-1])
+
+        top_k_features = torch.gather(features, 1, feature_index)
+        top_k_anchors = torch.gather(anchors.expand(bs, -1, -1), 1, anchor_index)
+        refer_bbox = self.enc_bbox_head(top_k_features) + top_k_anchors
+
+        enc_bboxes = refer_bbox.sigmoid()
+        if dn_bbox is not None:
+            refer_bbox = torch.cat([dn_bbox, refer_bbox], 1)
+        enc_scores = torch.gather(enc_outputs_scores, 1, score_index)
+
+        embeddings = self.tgt_embed.weight.unsqueeze(0).repeat(bs, 1, 1) if self.learnt_init_query else top_k_features
+        if self.training:
+            refer_bbox = refer_bbox.detach()
+            if not self.learnt_init_query:
+                embeddings = embeddings.detach()
+        if dn_embed is not None:
+            embeddings = torch.cat([dn_embed, embeddings], 1)
+
+        return embeddings, refer_bbox, enc_bboxes, enc_scores

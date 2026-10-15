@@ -1,0 +1,19 @@
+{
+  "model": "runs/train/rtdetr-r18-neu-baseline-seed2/weights/best.pt",
+  "data": "dataset/data.yaml",
+  "split": "test",
+  "imgsz": 640,
+  "batch": 8,
+  "precision": 0.713432676679116,
+  "recall": 0.675344575720248,
+  "f1": 0.677212313000068,
+  "map50": 0.7227119634136955,
+  "map75": 0.46167684772458095,
+  "map50_95": 0.43592425076219377,
+  "speed_ms_per_image": {
+    "preprocess": 0.48694399450098014,
+    "inference": 4.993793269365036,
+    "loss": 0.0019390204735787594,
+    "postprocess": 0.27778579740066806
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "model": "runs/train/rtdetr-r18-gc10-fixed42-slimneck-innergiou-msaifi-800-seed1/weights/best.pt",
+  "data": "dataset/GC10-DET/data.yaml",
+  "split": "test",
+  "imgsz": 800,
+  "batch": 8,
+  "precision": 0.6741533052150521,
+  "recall": 0.6201475998341909,
+  "f1": 0.6277543437874499,
+  "map50": 0.5966798708648138,
+  "map75": 0.23532220730901993,
+  "map50_95": 0.2941043989558303,
+  "speed_ms_per_image": {
+    "preprocess": 0.8513429890508237,
+    "inference": 7.236208086428435,
+    "loss": 0.0015134396760360053,
+    "postprocess": 0.23930383765179178
+  }
+}

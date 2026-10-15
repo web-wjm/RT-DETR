@@ -1,0 +1,19 @@
+{
+  "model": "runs/train/rtdetr-r18-gc10-fixed42-msaifi-innergiou-800-seed1/weights/best.pt",
+  "data": "dataset/GC10-DET/data.yaml",
+  "split": "test",
+  "imgsz": 800,
+  "batch": 8,
+  "precision": 0.7162312488793409,
+  "recall": 0.5623224719172215,
+  "f1": 0.5868793376659539,
+  "map50": 0.5658745918508059,
+  "map75": 0.22101873294472565,
+  "map50_95": 0.2787286479653871,
+  "speed_ms_per_image": {
+    "preprocess": 0.7193980009659477,
+    "inference": 6.521857303121815,
+    "loss": 0.001837896264117697,
+    "postprocess": 0.21010896433954654
+  }
+}
