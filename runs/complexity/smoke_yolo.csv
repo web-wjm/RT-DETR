@@ -1,2 +1,0 @@
-model,loader,imgsz,precision_mode,parameters,parameters_m,trainable_parameters,gflops,checkpoint_mib,latency_ms_mean,latency_ms_std,latency_ms_p50,latency_ms_p95,fps_batch1,peak_cuda_allocated_mib,peak_cuda_reserved_mib
-yolov8n.pt,YOLO,320,FP32,3151904,3.151904,0,2.1866112,6.231677055358887,26.217250153422356,3.1677676707909233,28.457200154662132,23.97730015218258,38.142825588039855,0.0,0.0

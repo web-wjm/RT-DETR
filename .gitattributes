@@ -1,1 +1,2 @@
-dataset/GC10-DET/images/**/*.jpg filter=lfs diff=lfs merge=lfs -text
+# Binary assets are kept small; dataset images are not tracked.
+*.psd binary

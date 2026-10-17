@@ -1,2 +1,0 @@
-model,loader,imgsz,precision_mode,parameters,parameters_m,trainable_parameters,gflops,checkpoint_mib,latency_ms_mean,latency_ms_std,latency_ms_p50,latency_ms_p95,fps_batch1,peak_cuda_allocated_mib,peak_cuda_reserved_mib
-runs\train\rtdetr-r18-neu-baseline-batch-8\weights\best.pt,RTDETR,320,FP32,19879464,19.879464,0,15.5581952,76.97008514404297,112.85539995878935,8.622036117612263,118.95210016518831,106.75869975239038,8.860896336065117,0.0,0.0
