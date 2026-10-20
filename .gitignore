@@ -138,6 +138,8 @@ dmypy.json
 
 # datasets and projects
 datasets/
+dataset/GC10-DET/
+dataset/NEU-DET/
 runs/
 # 排除冗余数据（NEU-DET 原始包和解压后的图像/标注已分离，zip 不需要）
 dataset/NEU-DET.zip
