@@ -178,3 +178,26 @@ pnnx*
 /ultralytics/assets/
 
 .codex
+
+# --- JRITP submission workspace artifacts (local only) ---
+jrtip_submission/_pre_*
+jrtip_submission/_head_*
+jrtip_submission/_audit_*
+jrtip_submission/_verify_*
+jrtip_submission/_check_*
+jrtip_submission/_surgery_*
+jrtip_submission/fig_*_clean.*
+jrtip_submission/*.zip
+.codepilot-uploads/
+
+# --- Non-paper experiment configs (the 9 paper YAMLs are already tracked) ---
+models/rt-detr/*.yaml
+
+# --- Auxiliary datasets not used in the manuscript ---
+dataset/DeepPCB/
+dataset/Magnetic-Tile/
+dataset/VOCdevkit/
+jrtip_submission.zip
+jrtip_submission/__pycache__/
+models/yolo-detr/
+优秀论文/
