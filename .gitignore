@@ -201,3 +201,13 @@ jrtip_submission.zip
 jrtip_submission/__pycache__/
 models/yolo-detr/
 优秀论文/
+
+# Local-only manuscript & submission assets (never push)
+jrtip_submission/
+springer期刊模板/
+RTDETR_DualAIFI_*
+RTDETR_SlimNeck_DualAIFI_*
+RTDETR_SlimNeck_KeyModules_*
+_svg_to_pdf.py
+draw_editable_overall_network.py
+draw_editable_slimneck_modules.py
