@@ -211,3 +211,9 @@ RTDETR_SlimNeck_KeyModules_*
 _svg_to_pdf.py
 draw_editable_overall_network.py
 draw_editable_slimneck_modules.py
+
+# MVA submission folder: keep manuscript + figures + template, omit working assets
+mva_submission/_bak_original/
+mva_submission/_pre_*.tex
+mva_submission/MVA_latex_source.zip
+mva_submission/cover_letter.docx
